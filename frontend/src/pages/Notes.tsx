@@ -46,7 +46,7 @@ export default function Notes() {
   }
 
   async function handleDelete(id: number) {
-    if (!confirm("Delete this note? This also removes its chat sessions.")) return;
+    if (!confirm("Delete this note? This also removes its chat sessions and any share link.")) return;
     try {
       await api.delete(`/notes/${id}`);
       setNotes((prev) => prev.filter((n) => n.id !== id));
@@ -74,16 +74,20 @@ export default function Notes() {
         ) : (
           <ul className="space-y-3">
             {notes.map((note) => (
-              <li key={note.id} className="flex items-center justify-between rounded-lg border bg-white p-4">
-                <div>
-                  <p className="font-medium">{note.title}</p>
-                  <p className="text-sm text-gray-500">
-                    {note.is_indexed ? "Indexed \u2014 ready to chat" : "Processing..."}
-                  </p>
+              <li key={note.id} className="rounded-lg border bg-white p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{note.title}</p>
+                    <p className="text-sm text-gray-500">
+                      {note.is_indexed ? "Indexed \u2014 ready to chat" : "Processing..."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => handleDelete(note.id)} className="text-sm text-red-600 hover:underline">
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                <button onClick={() => handleDelete(note.id)} className="text-sm text-red-600 hover:underline">
-                  Delete
-                </button>
               </li>
             ))}
           </ul>

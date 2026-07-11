@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
-from jose import jwt
+# pyrefly: ignore [missing-import]
+import jwt
 from passlib.context import CryptContext
 
 from core.config import settings

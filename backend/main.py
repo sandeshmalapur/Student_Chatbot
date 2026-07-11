@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
-from routers import auth, chat, notes
+from routers import auth, chat, notes, shared
 
 app = FastAPI(title="Student Notes Chatbot API", version="1.0.0")
 
@@ -17,6 +17,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(notes.router)
 app.include_router(chat.router)
+app.include_router(shared.router)
 
 
 @app.get("/health", tags=["health"])

@@ -24,5 +24,17 @@ export interface MessageOut {
   id: number;
   role: "user" | "assistant";
   content: string;
+  image_urls: string[];
   created_at: string;
+}
+
+export interface SharedLinkOut {
+  token: string;
+  share_path: string;
+}
+
+export interface SharedNoteInfo {
+  note_title: string;
+  is_active: boolean;
+  messages: MessageOut[];
 }

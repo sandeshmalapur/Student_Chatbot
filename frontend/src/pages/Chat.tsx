@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Navbar from "../components/Navbar";
 import api from "../services/api";
-import type { ChatSessionOut, MessageOut, NoteOut } from "../services/types";
+import type { ChatSessionOut, MessageOut, NoteOut, SharedLinkOut } from "../services/types";
 
 export default function Chat() {
   const [notes, setNotes] = useState<NoteOut[]>([]);
@@ -12,6 +12,8 @@ export default function Chat() {
   const [selectedNoteId, setSelectedNoteId] = useState<number | "">("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -21,6 +23,7 @@ export default function Chat() {
 
   useEffect(() => {
     if (activeSessionId === null) return;
+    setShareUrl(null);
     api.get<MessageOut[]>(`/chat/sessions/${activeSessionId}/messages`).then((res) => setMessages(res.data));
   }, [activeSessionId]);
 
@@ -53,7 +56,7 @@ export default function Chat() {
     setInput("");
     setMessages((prev) => [
       ...prev,
-      { id: Date.now(), role: "user", content: userText, created_at: new Date().toISOString() },
+      { id: Date.now(), role: "user", content: userText, image_urls: [], created_at: new Date().toISOString() },
     ]);
 
     try {
@@ -64,6 +67,36 @@ export default function Chat() {
     } finally {
       setIsSending(false);
     }
+  }
+
+  async function handleShareChat() {
+    if (activeSessionId === null) return;
+    setIsSharing(true);
+    setError(null);
+    try {
+      const res = await api.post<SharedLinkOut>(`/chat/sessions/${activeSessionId}/share`);
+      const fullUrl = `${window.location.origin}${res.data.share_path}`;
+      setShareUrl(fullUrl);
+    } catch (err: any) {
+      setError(err?.response?.data?.detail ?? "Failed to share chat.");
+    } finally {
+      setIsSharing(false);
+    }
+  }
+
+  async function handleUnshareChat() {
+    if (activeSessionId === null) return;
+    setError(null);
+    try {
+      await api.delete(`/chat/sessions/${activeSessionId}/share`);
+      setShareUrl(null);
+    } catch {
+      setError("Failed to revoke share link.");
+    }
+  }
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text);
   }
 
   return (
@@ -107,8 +140,37 @@ export default function Chat() {
           </div>
         </aside>
 
-        <main className="flex flex-1 flex-col rounded-lg border bg-white">
-          {error && <p className="m-3 rounded bg-red-50 p-2 text-sm text-red-600">{error}</p>}
+        <main className="flex flex-1 flex-col rounded-lg border bg-white overflow-hidden">
+          {activeSessionId !== null && (
+            <div className="flex items-center justify-between border-b p-3 bg-gray-50 flex-shrink-0">
+              <span className="font-medium text-sm truncate max-w-[60%]">
+                {sessions.find((s) => s.id === activeSessionId)?.title || "Chat"}
+              </span>
+              <div className="flex items-center gap-2">
+                {!shareUrl ? (
+                  <button
+                    onClick={handleShareChat}
+                    disabled={isSharing}
+                    className="rounded bg-primary px-3 py-1 text-xs text-white hover:bg-primary-light disabled:opacity-50"
+                  >
+                    {isSharing ? "Sharing..." : "Share Chat"}
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-gray-500 truncate max-w-40 bg-white border rounded px-2 py-1">{shareUrl}</span>
+                    <button onClick={() => copyToClipboard(shareUrl)} className="text-primary hover:underline font-medium">
+                      Copy
+                    </button>
+                    <button onClick={handleUnshareChat} className="text-red-600 hover:underline font-medium">
+                      Revoke
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {error && <p className="m-3 rounded bg-red-50 p-2 text-sm text-red-600 flex-shrink-0">{error}</p>}
 
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
             {activeSessionId === null ? (
@@ -116,10 +178,22 @@ export default function Chat() {
             ) : (
               messages.map((m) => (
                 <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[75%] rounded-lg px-4 py-2 text-sm ${
+                  <div className={`max-w-[75%] space-y-2 rounded-lg px-4 py-2 text-sm ${
                     m.role === "user" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
                   }`}>
-                    {m.content}
+                    <p>{m.content}</p>
+                    {m.image_urls?.length > 0 && (
+                      <div className="space-y-2">
+                        {m.image_urls.map((url, i) => (
+                          <img
+                            key={i}
+                            src={url}
+                            alt={`Diagram ${i + 1} from note`}
+                            className="max-h-64 rounded border bg-white object-contain"
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
