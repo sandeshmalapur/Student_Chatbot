@@ -19,6 +19,7 @@ class ChatSessionOut(BaseModel):
 
 class MessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
+    answer_language: str = Field(default="en", max_length=10)
 
 
 class MessageOut(BaseModel):
@@ -28,6 +29,7 @@ class MessageOut(BaseModel):
     role: str
     content: str
     image_urls: list[str] = Field(default_factory=list)
+    answer_language: str | None = "en"
     created_at: datetime
 
     @field_validator("image_urls", mode="before")

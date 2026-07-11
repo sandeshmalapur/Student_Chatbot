@@ -45,9 +45,17 @@ def get_groq_client() -> Groq:
 def ensure_collection() -> None:
     client = get_qdrant_client()
     existing = [c.name for c in client.get_collections().collections]
-    if COLLECTION_NAME in existing:
-        return
     vector_size = get_embedding_model().get_sentence_embedding_dimension()
+    
+    if COLLECTION_NAME in existing:
+        info = client.get_collection(COLLECTION_NAME)
+        current_size = info.config.params.vectors.size
+        if current_size != vector_size:
+            print(f"Dimension mismatch in collection '{COLLECTION_NAME}': current size {current_size}, model size {vector_size}. Dropping and recreating collection.")
+            client.delete_collection(COLLECTION_NAME)
+        else:
+            return
+            
     client.create_collection(
         collection_name=COLLECTION_NAME,
         vectors_config=qmodels.VectorParams(size=vector_size, distance=qmodels.Distance.COSINE),
@@ -58,8 +66,14 @@ def ensure_collection() -> None:
 
 def extract_text_by_page(pdf_bytes: bytes) -> list[str]:
     """Returns a list where index i is the text of page i+1 (1-indexed pages)."""
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    return [(page.extract_text() or "").strip() for page in reader.pages]
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    pages = []
+    try:
+        for page in doc:
+            pages.append((page.get_text() or "").strip())
+    finally:
+        doc.close()
+    return pages
 
 
 def chunk_pages(pages_text: list[str]) -> list[dict]:
@@ -246,16 +260,29 @@ def retrieve_relevant_chunks(query: str, owner_id: int, note_id: int, top_k: int
     ]
 
 
-def build_prompt(query: str, chunks: list[dict]) -> str:
+LANGUAGE_NAME_MAP = {
+    "en": "English",
+    "hi": "Hindi",
+    "kn": "Kannada",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "mr": "Marathi"
+}
+
+
+def build_prompt(query: str, chunks: list[dict], answer_language: str = "en") -> str:
     context = "\n\n---\n\n".join(c["text"] for c in chunks)
+    lang_name = LANGUAGE_NAME_MAP.get(answer_language, "English")
     return (
-        "You are a study assistant. Answer the question using ONLY the context below, "
-        "which was extracted from the student's own uploaded lecture notes. "
-        "If the answer is not contained in the context, say clearly that the notes "
-        "don't cover this and do not make anything up.\n\n"
+        f"You are a study assistant. Answer the question using ONLY the context below, "
+        f"which was extracted from the student's own uploaded lecture notes. "
+        f"Answer the question in {lang_name}, even if the context or query is in a different language. "
+        f"Translate the relevant information into {lang_name}. Do NOT mix languages or write in a language other than {lang_name}.\n\n"
+        f"If the answer is not contained in the context, state clearly in {lang_name} that the notes "
+        f"don't cover this and do not make anything up.\n\n"
         f"CONTEXT:\n{context}\n\n"
         f"QUESTION:\n{query}\n\n"
-        "ANSWER:"
+        f"ANSWER ({lang_name}):"
     )
 
 
@@ -285,19 +312,25 @@ def _images_for_pages(db: Session, note_id: int, page_numbers: list[int], limit:
     return urls
 
 
-def generate_answer_with_images(query: str, owner_id: int, note_id: int, db: Session) -> tuple[str, list[str]]:
+def generate_answer_with_images(query: str, owner_id: int, note_id: int, db: Session, answer_language: str = "en") -> tuple[str, list[str]]:
     """Returns (answer_text, image_urls). image_urls are diagrams found on the top-scoring page(s) only."""
     chunks = retrieve_relevant_chunks(query, owner_id, note_id)
     relevant = [c for c in chunks if c["score"] >= MIN_SIMILARITY_SCORE]
 
     if not relevant:
+        lang_name = LANGUAGE_NAME_MAP.get(answer_language, "English")
+        if answer_language == "hi":
+            no_context_msg = "मुझे इस प्रश्न से संबंधित कोई जानकारी आपके नोट्स में नहीं मिली। कृपया पुनः प्रयास करें।"
+        elif answer_language == "kn":
+            no_context_msg = "ಈ ಪ್ರಶ್ನೆಗೆ ಸಂಬಂಧಿಸಿದ ಯಾವುದೇ ಮಾಹಿತಿ ನಿಮ್ಮ ಟಿಪ್ಪಣಿಗಳಲ್ಲಿ ಕಂಡುಬಂದಿಲ್ಲ. ದಯವಿಟ್ಟು ಮತ್ತೊಮ್ಮೆ ಪ್ರಯತ್ನಿಸಿ."
+        else:
+            no_context_msg = f"I couldn't find anything relevant to that question in this note. Try rephrasing, or ask about a topic that's actually covered in the uploaded PDF."
         return (
-            "I couldn't find anything relevant to that question in this note. "
-            "Try rephrasing, or ask about a topic that's actually covered in the uploaded PDF.",
+            no_context_msg,
             [],
         )
 
-    prompt = build_prompt(query, relevant)
+    prompt = build_prompt(query, relevant, answer_language)
     client = get_groq_client()
     completion = client.chat.completions.create(
         model=settings.GROQ_MODEL,

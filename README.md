@@ -96,3 +96,5 @@ _Add screenshots of Register/Login, Dashboard, Notes, and Chat pages here after 
 - Multi-note chat (query across all of a user's notes at once)
 - Highlighting the exact source chunk/page used for an answer
 - Support for non-PDF formats (docx, pptx, images via OCR)
+
+

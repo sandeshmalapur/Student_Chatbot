@@ -15,3 +15,4 @@ class SharedNoteInfo(BaseModel):
 
 class SharedMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
+    answer_language: str = Field(default="en", max_length=10)

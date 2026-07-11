@@ -49,6 +49,7 @@ def send_shared_message(
         owner_id=link.session.owner_id,
         note_id=link.session.note_id,
         db=db,
+        answer_language=payload.answer_language,
     )
 
     # Shared/anonymous chat is stateless by design (no user account to attach history to);
@@ -58,5 +59,6 @@ def send_shared_message(
         role="assistant",
         content=answer_text,
         image_urls=image_urls,
+        answer_language=payload.answer_language,
         created_at=datetime.now(timezone.utc),
     )

@@ -25,6 +25,7 @@ export interface MessageOut {
   role: "user" | "assistant";
   content: string;
   image_urls: string[];
+  answer_language?: string;
   created_at: string;
 }
 

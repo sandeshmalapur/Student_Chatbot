@@ -30,6 +30,8 @@ class Message(Base):
     # Signed Supabase Storage URLs for any diagrams/images relevant to this answer (assistant messages only).
     # Nullable/empty for user messages and for assistant messages with no relevant images.
     image_urls: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Target language code for translation/answering, e.g. "en", "hi", "kn"
+    answer_language: Mapped[str | None] = mapped_column(String(10), nullable=True, default="en")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     session = relationship("ChatSession", back_populates="messages")

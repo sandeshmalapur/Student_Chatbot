@@ -56,16 +56,29 @@ def send_message(
 ):
     session = _get_owned_session(db, session_id, current_user.id)
 
-    user_message = Message(session_id=session.id, role="user", content=payload.content)
+    user_message = Message(
+        session_id=session.id,
+        role="user",
+        content=payload.content,
+        answer_language=payload.answer_language,
+    )
     db.add(user_message)
     db.commit()
 
     answer_text, image_urls = generate_answer_with_images(
-        payload.content, owner_id=current_user.id, note_id=session.note_id, db=db
+        payload.content,
+        owner_id=current_user.id,
+        note_id=session.note_id,
+        db=db,
+        answer_language=payload.answer_language,
     )
 
     assistant_message = Message(
-        session_id=session.id, role="assistant", content=answer_text, image_urls=image_urls or None
+        session_id=session.id,
+        role="assistant",
+        content=answer_text,
+        image_urls=image_urls or None,
+        answer_language=payload.answer_language,
     )
     db.add(assistant_message)
     db.commit()
