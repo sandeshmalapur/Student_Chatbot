@@ -39,3 +39,4 @@ export interface SharedNoteInfo {
   is_active: boolean;
   messages: MessageOut[];
 }
+
